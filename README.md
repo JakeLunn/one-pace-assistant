@@ -56,7 +56,40 @@ NFO files are automatically generated alongside downloads. Your media server sho
 
 ### Plex
 
-Plex requires the [XBMCnfoTVImporter](https://github.com/gboudreau/XBMCnfoTVImporter.bundle) agent to read NFO files. Follow the installation instructions in that repository.
+Plex users have two options for metadata:
+
+#### Option 1: Direct API (Recommended)
+
+Use the `setup-plex` command to update metadata directly via the Plex API:
+
+```bash
+# Basic usage - update metadata for One Piece show
+onepace setup-plex \
+    --plex-host http://localhost:32400 \
+    --plex-token YOUR_TOKEN
+
+# Preview changes without applying
+onepace setup-plex \
+    --plex-host http://localhost:32400 \
+    --plex-token YOUR_TOKEN \
+    --dry-run
+
+# Full options: rename show, upload posters, trigger rescan
+onepace setup-plex \
+    --plex-host http://localhost:32400 \
+    --plex-token YOUR_TOKEN \
+    --library "Anime" \
+    --rename-show \
+    --poster-dir ./posters \
+    --rescan
+```
+
+> **Note**: This updates the existing "One Piece" show metadata since Plex doesn't support custom shows.  
+> Get your Plex token: https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
+
+#### Option 2: NFO Files
+
+If you prefer NFO files, install the [XBMCnfoTVImporter](https://github.com/gboudreau/XBMCnfoTVImporter.bundle) agent.
 
 ## Development
 

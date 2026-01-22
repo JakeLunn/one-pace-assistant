@@ -15,6 +15,12 @@ from .downloader import (
     format_size,
 )
 from .nfo import generate_arc_nfos, generate_tvshow_nfo
+from .plex import (
+    PlexClient,
+    PlexConnectionError,
+    PlexShowNotFoundError,
+    update_plex_metadata,
+)
 from .poster_utils import copy_poster_to_arc_dir, find_poster_for_arc
 from .scraper import ScraperError, fetch_metadata_sync
 
@@ -561,6 +567,164 @@ def add_posters_cmd(
         console.print(f"  [red]Errors: {len(results['errors'])}[/red]")
         for error in results["errors"]:
             console.print(f"    [red]• {error}[/red]")
+
+
+@cli.command("setup-plex")
+@click.option(
+    "--plex-host",
+    required=True,
+    help="Plex server URL (e.g., http://localhost:32400)",
+)
+@click.option(
+    "--plex-token",
+    required=True,
+    help="Plex authentication token (see https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)",
+)
+@click.option(
+    "--library",
+    default="TV",
+    help="Plex library containing One Piece (default: TV)",
+)
+@click.option(
+    "--show-name",
+    default="One Piece",
+    help="Current show name in Plex (default: One Piece)",
+)
+@click.option(
+    "--rename-show",
+    is_flag=True,
+    default=False,
+    help="Rename show title to 'One Pace'",
+)
+@click.option(
+    "--poster-dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help="Directory containing poster images to upload",
+)
+@click.option(
+    "--rescan",
+    is_flag=True,
+    default=False,
+    help="Trigger library rescan after metadata update",
+)
+@click.option(
+    "-n",
+    "--dry-run",
+    is_flag=True,
+    help="Preview changes without applying",
+)
+@click.pass_context
+def setup_plex_cmd(
+    ctx: click.Context,
+    plex_host: str,
+    plex_token: str,
+    library: str,
+    show_name: str,
+    rename_show: bool,
+    poster_dir: Path | None,
+    rescan: bool,
+    dry_run: bool,
+) -> None:
+    """Update Plex metadata for One Pace episodes.
+
+    This command connects to your Plex server and updates the metadata for
+    the One Piece show to match One Pace arc titles and descriptions.
+
+    Note: Plex cannot create custom shows, so this works by updating the
+    existing 'One Piece' show metadata.
+
+    Requirements:
+    - One Piece must already exist in your Plex library
+    - Files must be organized so Plex recognized seasons/episodes
+    """
+    quiet = ctx.obj.get("quiet", False)
+
+    if dry_run and not quiet:
+        console.print("[yellow]DRY RUN - No changes will be applied[/yellow]\n")
+
+    # Connect to Plex
+    if not quiet:
+        console.print(f"[cyan]Connecting to Plex server at {plex_host}...[/cyan]")
+
+    try:
+        client = PlexClient(plex_host, plex_token)
+    except PlexConnectionError as e:
+        console.print(f"[red]Failed to connect to Plex: {e}[/red]")
+        raise SystemExit(1)
+
+    if not quiet:
+        console.print("[green]Connected to Plex server[/green]")
+
+    # Fetch One Pace metadata
+    if not quiet:
+        console.print("[cyan]Fetching One Pace metadata...[/cyan]")
+
+    try:
+        arcs = fetch_metadata_sync()
+    except ScraperError as e:
+        console.print(f"[red]Error fetching metadata: {e}[/red]")
+        raise SystemExit(1)
+
+    # Filter out specials for season mapping
+    main_arcs = [a for a in arcs if not a.special]
+
+    if not quiet:
+        console.print(f"[dim]Found {len(main_arcs)} main arcs[/dim]")
+
+    # Update Plex metadata
+    if not quiet:
+        console.print(f"\n[cyan]Updating metadata for '{show_name}'...[/cyan]")
+
+    try:
+        results = update_plex_metadata(
+            client=client,
+            arcs=main_arcs,
+            library=library,
+            show_name=show_name,
+            rename_show=rename_show,
+            poster_dir=poster_dir,
+            dry_run=dry_run,
+        )
+    except PlexShowNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        console.print(
+            "[dim]Make sure One Piece exists in your Plex library "
+            "and has been scanned.[/dim]"
+        )
+        raise SystemExit(1)
+    except PlexConnectionError as e:
+        console.print(f"[red]Plex error: {e}[/red]")
+        raise SystemExit(1)
+
+    # Trigger rescan if requested
+    if rescan and not dry_run:
+        if not quiet:
+            console.print(f"\n[cyan]Triggering library rescan for '{library}'...[/cyan]")
+        try:
+            client.rescan_library(library)
+            if not quiet:
+                console.print("[green]Library rescan initiated[/green]")
+        except PlexConnectionError as e:
+            console.print(f"[yellow]Warning: Could not trigger rescan: {e}[/yellow]")
+
+    # Summary
+    console.print("\n[bold]Summary:[/bold]")
+    if results["show_changes"]:
+        console.print(f"  Show metadata updated: {list(results['show_changes'].keys())}")
+    console.print(f"  Seasons updated: {results['seasons_updated']}")
+    console.print(f"  Episodes updated: {results['episodes_updated']}")
+    if poster_dir:
+        console.print(f"  Posters uploaded: {results['posters_uploaded']}")
+    if results["errors"]:
+        console.print(f"  [yellow]Warnings: {len(results['errors'])}[/yellow]")
+        for error in results["errors"]:
+            console.print(f"    [yellow]• {error}[/yellow]")
+
+    if dry_run:
+        console.print("\n[yellow]DRY RUN complete - no changes were applied[/yellow]")
+    else:
+        console.print("\n[bold green]✓ Plex metadata update complete![/bold green]")
 
 
 def main() -> None:
