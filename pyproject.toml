@@ -1,6 +1,6 @@
 [project]
 name = "onepace-assistant"
-version = "0.3.0"
+version = "0.2.0"
 description = "CLI tool to download and organize One Pace files for media servers"
 readme = "README.md"
 requires-python = ">=3.11"
