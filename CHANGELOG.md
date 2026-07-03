@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.2 (2026-07-03)
+
+### Bug Fixes
+
+- Update scraper for new site layout and handle field renames
+  ([`a5d3948`](https://github.com/JakeLunn/one-pace-assistant/commit/a5d394830d7836f4ff853a65ebb21c480313eba8))
+
+
 ## v0.4.1 (2026-04-14)
 
 ### Bug Fixes
