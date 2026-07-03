@@ -2,7 +2,7 @@
 
 import pytest
 
-from onepace_assistant.scraper import extract_rsc_payload, _unescape_rsc_string, _normalize_undefined
+from onepace_assistant.scraper import extract_rsc_payload, _unescape_rsc_string, _normalize_arc_data
 
 
 class TestUnescapeRscString:
@@ -18,17 +18,17 @@ class TestUnescapeRscString:
         assert _unescape_rsc_string("path\\\\to\\\\file") == "path\\to\\file"
 
 
-class TestNormalizeUndefined:
-    """Tests for $undefined normalization."""
+class TestNormalizeArcData:
+    """Tests for arc data normalization."""
 
     def test_normalize_dict_with_undefined(self):
         data = {"sub": "$undefined", "dub": "en", "variant": "$undefined"}
-        result = _normalize_undefined(data)
+        result = _normalize_arc_data(data)
         assert result == {"sub": None, "dub": "en", "variant": None}
 
     def test_normalize_list_with_undefined(self):
         data = ["$undefined", "en", "ja", "$undefined"]
-        result = _normalize_undefined(data)
+        result = _normalize_arc_data(data)
         assert result == [None, "en", "ja", None]
 
     def test_normalize_nested_structures(self):
@@ -38,7 +38,7 @@ class TestNormalizeUndefined:
                 {"sub": "en", "dub": "ja", "variant": "$undefined"},
             ]
         }
-        result = _normalize_undefined(data)
+        result = _normalize_arc_data(data)
         assert result == {
             "playGroups": [
                 {"sub": None, "dub": "en", "playlists": []},
@@ -46,13 +46,25 @@ class TestNormalizeUndefined:
             ]
         }
 
+    def test_normalize_playlist_groups_mapping(self):
+        """Test that playlistGroups is mapped to playGroups for compatibility with newer site versions."""
+        data = {
+            "playlistGroups": [
+                {"id": 1, "name": "Standard"}
+            ]
+        }
+        result = _normalize_arc_data(data)
+        assert "playGroups" in result
+        assert "playlistGroups" not in result
+        assert result["playGroups"] == [{"id": 1, "name": "Standard"}]
+
     def test_normalize_preserves_other_values(self):
         data = {
             "title": "Romance Dawn",
             "description": "Test with $undefined in text",
             "sub": "$undefined",
         }
-        result = _normalize_undefined(data)
+        result = _normalize_arc_data(data)
         # Only exact match "$undefined" should be converted
         assert result == {
             "title": "Romance Dawn",

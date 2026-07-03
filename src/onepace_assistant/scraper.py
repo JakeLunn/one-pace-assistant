@@ -29,48 +29,55 @@ def _unescape_rsc_string(s: str) -> str:
 
 
 def _extract_arcs_array(payload: str) -> list[dict]:
-    """Extract the arcs data array from the RSC payload."""
-    # Find the data property containing the arcs array
-    # Pattern: "data":[{"slug":... - we match the start then use bracket counting
-    data_match = re.search(r'"data":\s*(\[{"slug":")', payload, re.DOTALL)
-    if data_match:
+    """Extract the arcs data array from the RSC payload (supports modern and legacy formats)."""
+    # 1. Handle timeline-based segments (current site version)
+    # 2. Fallback for legacy data property structure
+    patterns = [
+        r'"timeline":\s*\{.*?"segments":\s*(\[)',
+        r'"data":\s*(\[{"slug":")'
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, payload, re.DOTALL)
+        if not match:
+            continue
+
         # Extract the array using bracket matching
-        start_idx = data_match.start(1)
+        start_idx = match.start(1)
         arr_str = payload[start_idx:]
-        
+
         bracket_count = 0
-        end_idx = 0
         for i, c in enumerate(arr_str):
             if c == '[':
                 bracket_count += 1
             elif c == ']':
                 bracket_count -= 1
                 if bracket_count == 0:
-                    end_idx = i + 1
-                    break
-        
-        if end_idx > 0:
-            try:
-                return json.loads(arr_str[:end_idx])
-            except json.JSONDecodeError:
-                pass
+                    try:
+                        return json.loads(arr_str[:i + 1])
+                    except json.JSONDecodeError:
+                        break  # Try next pattern
 
     raise ScraperError("Could not extract arcs data from RSC payload")
 
 
-def _normalize_undefined(data: dict | list | Any) -> dict | list | Any:
-    """Recursively replace '$undefined' strings with None.
-    
-    onepace.net's RSC payload contains the literal string '$undefined' for
-    fields that should be null/None. This function normalizes those values.
+def _normalize_arc_data(data: Any) -> Any:
     """
+    Recursively normalizes payload data:
+    - Replaces '$undefined' with None.
+    - Maps 'playlistGroups' to 'playGroups' for compatibility with newer site versions.
+    """
+    if isinstance(data, list):
+        return [_normalize_arc_data(item) for item in data]
+
     if isinstance(data, dict):
-        return {k: _normalize_undefined(v) for k, v in data.items()}
-    elif isinstance(data, list):
-        return [_normalize_undefined(item) for item in data]
-    elif data == "$undefined":
-        return None
-    return data
+        normalized = {}
+        for k, v in data.items():
+            key = "playGroups" if k == "playlistGroups" else k
+            normalized[key] = _normalize_arc_data(v)
+        return normalized
+
+    return None if data == "$undefined" else data
 
 
 def extract_rsc_payload(html: str) -> str:
@@ -95,8 +102,8 @@ def parse_arcs_from_html(html: str) -> list[Arc]:
     arcs = []
     for arc_data in arcs_data:
         try:
-            # Normalize $undefined strings to None before validation
-            normalized_data = _normalize_undefined(arc_data)
+            # Normalize data: $undefined -> None, playlistGroups -> playGroups
+            normalized_data = _normalize_arc_data(arc_data)
             arc = Arc.model_validate(normalized_data)
             arcs.append(arc)
         except Exception as e:
