@@ -265,7 +265,7 @@ def download(
 
     if not playlist:
         console.print("[red]No playlist found matching preferences[/red]")
-        console.print("[dim]Try 'onepace info {arc_slug}' to see available options[/dim]")
+        console.print(f"[dim]Try 'onepace info {arc_slug}' to see available options[/dim]")
         raise SystemExit(1)
 
     if not quiet:

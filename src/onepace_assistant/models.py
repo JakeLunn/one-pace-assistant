@@ -1,6 +1,6 @@
 """Data models for One Pace metadata."""
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class Playlist(BaseModel):
@@ -19,7 +19,11 @@ class PlayGroup(BaseModel):
     variant_title: str | None = Field(
         default=None, alias="variantTitle", description="Display name for variant"
     )
-    playlists: list[Playlist] = Field(default_factory=list)
+    # onepace.net renamed this key from "playlists" to "items"; accept both.
+    playlists: list[Playlist] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("playlists", "items"),
+    )
 
 
 class Backdrop(BaseModel):

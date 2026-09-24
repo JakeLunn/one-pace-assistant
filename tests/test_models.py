@@ -69,3 +69,16 @@ class TestArc:
         assert len(languages) == 2
         assert {"sub": "en", "dub": "ja", "variant": None} in languages
         assert {"sub": None, "dub": "en", "variant": None} in languages
+
+    def test_get_playlist_with_items_key(self):
+        """onepace.net renamed a play group's 'playlists' key to 'items'."""
+        arc = Arc.model_validate(
+            {
+                "slug": "romance-dawn",
+                "title": "Romance Dawn",
+                "playGroups": [
+                    {"sub": "en", "dub": "ja", "items": [{"id": "abc", "resolution": 1080}]}
+                ],
+            }
+        )
+        assert arc.get_playlist(resolution=1080, sub="en", dub="ja").id == "abc"
